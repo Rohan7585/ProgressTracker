@@ -16,7 +16,7 @@ import com.rohan.progresstracker.ui.todo.TodoViewModel
 val AppViewModelFactory = viewModelFactory {
     initializer { ProgressViewModel(app().repository) }
     initializer { TodoViewModel(app().repository) }
-    initializer { HistoryViewModel(app().repository, createSavedStateHandle()) }
+    initializer { HistoryViewModel(app().repository) }
     initializer { TaskEditViewModel(app().repository, createSavedStateHandle()) }
     initializer { DataTransferViewModel(app().repository, app().contentResolver) }
 }

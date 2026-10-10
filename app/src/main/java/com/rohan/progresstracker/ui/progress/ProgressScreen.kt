@@ -1,5 +1,8 @@
 package com.rohan.progresstracker.ui.progress
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,12 +15,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +36,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,7 +51,8 @@ import com.rohan.progresstracker.ui.AppViewModelFactory
 import com.rohan.progresstracker.ui.Routes
 import com.rohan.progresstracker.ui.edit.label
 import com.rohan.progresstracker.ui.history.HistoryViewModel
-import com.rohan.progresstracker.ui.history.progressHistorySection
+import com.rohan.progresstracker.ui.history.TaskHistory
+import com.rohan.progresstracker.ui.history.TaskHistoryPanel
 import com.rohan.progresstracker.ui.todo.EmptyMessage
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,8 +64,8 @@ fun ProgressScreen(
     historyViewModel: HistoryViewModel = viewModel(factory = AppViewModelFactory),
 ) {
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
-    val history by historyViewModel.uiState.collectAsStateWithLifecycle()
-    var historyExpanded by rememberSaveable { mutableStateOf(false) }
+    val histories by historyViewModel.histories.collectAsStateWithLifecycle()
+    val expandedIds by historyViewModel.expandedIds.collectAsStateWithLifecycle()
     /** Id of the task whose Time/Quantity dialog is open (saved so it survives screen rotation). */
     var dialogTaskId by rememberSaveable { mutableStateOf<Long?>(null) }
 
@@ -101,6 +108,8 @@ fun ProgressScreen(
                 items(list, key = { it.task.id }) { item ->
                     TaskCard(
                         item = item,
+                        history = histories[item.task.id],
+                        historyExpanded = item.task.id in expandedIds,
                         onOpen = dropUnlessResumed {
                             navController.navigate(Routes.editTask(Routes.KIND_RECURRING, item.task.id))
                         },
@@ -108,14 +117,10 @@ fun ProgressScreen(
                             if (item.task.parameterType == ParameterType.NONE) viewModel.toggleDone(item)
                             else dialogTaskId = item.task.id
                         },
+                        onToggleHistory = { historyViewModel.toggleExpanded(item.task.id) },
+                        onSelectDays = { days -> historyViewModel.setDays(item.task.id, days) },
                     )
                 }
-                progressHistorySection(
-                    state = history,
-                    expanded = historyExpanded,
-                    onToggle = { historyExpanded = !historyExpanded },
-                    onSelectDays = historyViewModel::setDays,
-                )
             }
         }
     }
@@ -143,15 +148,27 @@ fun ProgressScreen(
 }
 
 @Composable
-private fun TaskCard(item: TaskToday, onOpen: () -> Unit, onAction: () -> Unit) {
+private fun TaskCard(
+    item: TaskToday,
+    history: TaskHistory?,
+    historyExpanded: Boolean,
+    onOpen: () -> Unit,
+    onAction: () -> Unit,
+    onToggleHistory: () -> Unit,
+    onSelectDays: (Int) -> Unit,
+) {
     val task = item.task
     val period = if (task.frequency == Frequency.DAILY) "Today" else "This week"
     val frequency = if (task.frequency == Frequency.DAILY) "Daily" else "Weekly"
     val parameter = if (task.parameterType == ParameterType.NONE) "" else " · ${task.parameterType.label()}"
+    val arrowRotation by animateFloatAsState(if (historyExpanded) 180f else 0f, label = "historyArrow")
 
-    Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+            // Tapping the task (but not its buttons or history) opens it for editing.
+            modifier = Modifier
+                .clickable(onClick = onOpen)
+                .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -174,6 +191,13 @@ private fun TaskCard(item: TaskToday, onOpen: () -> Unit, onAction: () -> Unit) 
                 item.isDone -> "Edit progress for ${task.name}"
                 else -> "Record progress for ${task.name}"
             }
+            IconButton(onClick = onToggleHistory) {
+                Icon(
+                    Icons.Filled.KeyboardArrowDown,
+                    contentDescription = if (historyExpanded) "Hide history for ${task.name}" else "Show history for ${task.name}",
+                    modifier = Modifier.rotate(arrowRotation),
+                )
+            }
             if (item.isDone) {
                 FilledIconButton(onClick = onAction) { Icon(Icons.Filled.Check, contentDescription = description) }
             } else {
@@ -181,6 +205,19 @@ private fun TaskCard(item: TaskToday, onOpen: () -> Unit, onAction: () -> Unit) 
                     Icon(
                         if (task.parameterType == ParameterType.NONE) Icons.Filled.Check else Icons.Filled.Add,
                         contentDescription = description,
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(visible = historyExpanded && history != null) {
+            if (history != null) {
+                Column {
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    TaskHistoryPanel(
+                        history = history,
+                        onSelectDays = onSelectDays,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
                     )
                 }
             }
