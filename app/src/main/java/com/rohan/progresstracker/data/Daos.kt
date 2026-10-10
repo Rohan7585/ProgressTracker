@@ -17,6 +17,15 @@ interface RecurringTaskDao {
     @Query("SELECT * FROM recurring_tasks WHERE id = :id")
     suspend fun get(id: Long): RecurringTask?
 
+    @Query("SELECT * FROM recurring_tasks ORDER BY id")
+    suspend fun getAll(): List<RecurringTask>
+
+    @Insert
+    suspend fun insertAll(tasks: List<RecurringTask>)
+
+    @Query("DELETE FROM recurring_tasks")
+    suspend fun deleteAll()
+
     @Insert
     suspend fun insert(task: RecurringTask): Long
 
@@ -36,6 +45,15 @@ interface TodoDao {
     @Query("SELECT * FROM todo_tasks WHERE id = :id")
     suspend fun get(id: Long): TodoTask?
 
+    @Query("SELECT * FROM todo_tasks ORDER BY id")
+    suspend fun getAll(): List<TodoTask>
+
+    @Insert
+    suspend fun insertAll(tasks: List<TodoTask>)
+
+    @Query("DELETE FROM todo_tasks")
+    suspend fun deleteAll()
+
     @Insert
     suspend fun insert(task: TodoTask): Long
 
@@ -54,6 +72,15 @@ interface ProgressDao {
 
     @Query("SELECT * FROM progress_records WHERE taskId = :taskId AND date BETWEEN :start AND :end ORDER BY date")
     suspend fun getForTaskBetween(taskId: Long, start: LocalDate, end: LocalDate): List<ProgressRecord>
+
+    @Query("SELECT * FROM progress_records ORDER BY id")
+    suspend fun getAll(): List<ProgressRecord>
+
+    @Insert
+    suspend fun insertAll(records: List<ProgressRecord>)
+
+    @Query("DELETE FROM progress_records")
+    suspend fun deleteAll()
 
     @Upsert
     suspend fun upsert(record: ProgressRecord)

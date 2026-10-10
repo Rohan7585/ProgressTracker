@@ -1,12 +1,13 @@
 package com.rohan.progresstracker.data
 
+import androidx.room.withTransaction
 import com.rohan.progresstracker.domain.periodFor
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 import java.time.LocalTime
 
 /** Single entry point the ViewModels use to read and write data. */
-class Repository(db: AppDatabase) {
+class Repository(private val db: AppDatabase) {
     private val recurringDao = db.recurringTaskDao()
     private val todoDao = db.todoDao()
     private val progressDao = db.progressDao()
@@ -71,5 +72,22 @@ class Repository(db: AppDatabase) {
     /** Removes progress for the task's current period (marks it "not completed"). */
     suspend fun clearProgress(task: RecurringTask, today: LocalDate) {
         currentRecord(task, today)?.let { progressDao.delete(it) }
+    }
+
+    // ---- Import / export ----
+
+    /** A snapshot of everything stored in the app. */
+    suspend fun exportData(): BackupData = db.withTransaction {
+        BackupData(recurringDao.getAll(), todoDao.getAll(), progressDao.getAll())
+    }
+
+    /** Replaces ALL current data with [data]. If anything fails, nothing is changed. */
+    suspend fun replaceAllData(data: BackupData) = db.withTransaction {
+        progressDao.deleteAll()
+        todoDao.deleteAll()
+        recurringDao.deleteAll()
+        recurringDao.insertAll(data.tasks)
+        todoDao.insertAll(data.todos)
+        progressDao.insertAll(data.records)
     }
 }

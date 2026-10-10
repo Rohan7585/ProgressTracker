@@ -6,6 +6,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.rohan.progresstracker.ProgressTrackerApp
+import com.rohan.progresstracker.ui.backup.DataTransferViewModel
 import com.rohan.progresstracker.ui.edit.TaskEditViewModel
 import com.rohan.progresstracker.ui.history.HistoryViewModel
 import com.rohan.progresstracker.ui.progress.ProgressViewModel
@@ -17,6 +18,7 @@ val AppViewModelFactory = viewModelFactory {
     initializer { TodoViewModel(app().repository) }
     initializer { HistoryViewModel(app().repository, createSavedStateHandle()) }
     initializer { TaskEditViewModel(app().repository, createSavedStateHandle()) }
+    initializer { DataTransferViewModel(app().repository, app().contentResolver) }
 }
 
 private fun CreationExtras.app() = this[APPLICATION_KEY] as ProgressTrackerApp

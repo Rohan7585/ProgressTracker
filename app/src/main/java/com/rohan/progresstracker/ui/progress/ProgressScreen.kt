@@ -1,7 +1,6 @@
 package com.rohan.progresstracker.ui.progress
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,10 +12,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Card
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -30,7 +27,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,21 +44,27 @@ import com.rohan.progresstracker.ui.AppBottomBar
 import com.rohan.progresstracker.ui.AppViewModelFactory
 import com.rohan.progresstracker.ui.Routes
 import com.rohan.progresstracker.ui.edit.label
+import com.rohan.progresstracker.ui.history.HistoryViewModel
+import com.rohan.progresstracker.ui.history.progressHistorySection
 import com.rohan.progresstracker.ui.todo.EmptyMessage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProgressScreen(
     navController: NavHostController,
+    onOpenDrawer: () -> Unit,
     viewModel: ProgressViewModel = viewModel(factory = AppViewModelFactory),
+    historyViewModel: HistoryViewModel = viewModel(factory = AppViewModelFactory),
 ) {
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
-    var historyMenuOpen by remember { mutableStateOf(false) }
+    val history by historyViewModel.uiState.collectAsStateWithLifecycle()
+    var historyExpanded by rememberSaveable { mutableStateOf(false) }
     /** Id of the task whose Time/Quantity dialog is open (saved so it survives screen rotation). */
     var dialogTaskId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     LifecycleResumeEffect(Unit) {
         viewModel.refreshDate()
+        historyViewModel.refreshDate()
         onPauseOrDispose { }
     }
 
@@ -70,22 +72,9 @@ fun ProgressScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Progress Tracker") },
-                actions = {
-                    Box {
-                        IconButton(onClick = { historyMenuOpen = true }) {
-                            Icon(Icons.Filled.DateRange, contentDescription = "Progress history")
-                        }
-                        DropdownMenu(expanded = historyMenuOpen, onDismissRequest = { historyMenuOpen = false }) {
-                            listOf(7, 30).forEach { days ->
-                                DropdownMenuItem(
-                                    text = { Text("Last $days days") },
-                                    onClick = {
-                                        historyMenuOpen = false
-                                        navController.navigate(Routes.history(days))
-                                    },
-                                )
-                            }
-                        }
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Filled.Menu, contentDescription = "Open menu")
                     }
                 },
             )
@@ -121,6 +110,12 @@ fun ProgressScreen(
                         },
                     )
                 }
+                progressHistorySection(
+                    state = history,
+                    expanded = historyExpanded,
+                    onToggle = { historyExpanded = !historyExpanded },
+                    onSelectDays = historyViewModel::setDays,
+                )
             }
         }
     }

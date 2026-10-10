@@ -1,121 +1,152 @@
 package com.rohan.progresstracker.ui.history
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.LifecycleResumeEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.compose.dropUnlessResumed
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavHostController
+import com.rohan.progresstracker.R
 import com.rohan.progresstracker.data.Frequency
 import com.rohan.progresstracker.data.ParameterType
 import com.rohan.progresstracker.domain.formatDuration
 import com.rohan.progresstracker.domain.value
 import com.rohan.progresstracker.domain.weekStart
-import com.rohan.progresstracker.ui.AppViewModelFactory
 import com.rohan.progresstracker.ui.edit.label
-import com.rohan.progresstracker.ui.todo.EmptyMessage
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun HistoryScreen(
-    navController: NavHostController,
-    viewModel: HistoryViewModel = viewModel(factory = AppViewModelFactory),
+/**
+ * The collapsible "Progress history" section shown at the bottom of the Progress screen:
+ * a header with a range picker and an expand arrow, followed by one card per task when expanded.
+ */
+fun LazyListScope.progressHistorySection(
+    state: HistoryUiState?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onSelectDays: (Int) -> Unit,
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-
-    LifecycleResumeEffect(Unit) {
-        viewModel.refreshDate()
-        onPauseOrDispose { }
+    if (state == null) return
+    item(key = "history_header") {
+        HistoryHeader(
+            days = state.days,
+            expanded = expanded,
+            onToggle = onToggle,
+            onSelectDays = onSelectDays,
+            modifier = Modifier.padding(top = 16.dp).animateItem(),
+        )
     }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Progress history") },
-                navigationIcon = {
-                    IconButton(onClick = dropUnlessResumed { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        val ui = state ?: return@Scaffold
-
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                listOf(7, 30).forEachIndexed { index, days ->
-                    SegmentedButton(
-                        selected = ui.days == days,
-                        onClick = { viewModel.setDays(days) },
-                        shape = SegmentedButtonDefaults.itemShape(index, 2),
-                    ) { Text("Last $days days") }
-                }
-            }
-
-            if (ui.tasks.isEmpty()) {
-                EmptyMessage("No daily or weekly tasks yet.")
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(ui.tasks, key = { it.task.id }) { history ->
-                        TaskHistoryCard(history, ui)
-                    }
-                }
-            }
+    if (expanded) {
+        items(state.tasks, key = { "history_${it.task.id}" }) { history ->
+            TaskHistoryCard(history, state, Modifier.animateItem())
         }
     }
 }
 
 @Composable
-private fun TaskHistoryCard(history: TaskHistory, ui: HistoryUiState) {
+private fun HistoryHeader(
+    days: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onSelectDays: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var rangeMenuOpen by remember { mutableStateOf(false) }
+    val arrowRotation by animateFloatAsState(if (expanded) 180f else 0f, label = "historyArrow")
+
+    Surface(
+        onClick = onToggle,
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" },
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(painterResource(R.drawable.ic_history), contentDescription = null)
+            Spacer(Modifier.width(12.dp))
+            Text("Progress history", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            Box {
+                TextButton(onClick = { rangeMenuOpen = true }) {
+                    Text("$days days")
+                    Icon(Icons.Filled.ArrowDropDown, contentDescription = "Change history range")
+                }
+                DropdownMenu(expanded = rangeMenuOpen, onDismissRequest = { rangeMenuOpen = false }) {
+                    HISTORY_RANGES.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text("Last $option days") },
+                            leadingIcon = {
+                                if (option == days) Icon(Icons.Filled.Check, contentDescription = "Selected")
+                                else Spacer(Modifier.width(24.dp))
+                            },
+                            onClick = {
+                                rangeMenuOpen = false
+                                onSelectDays(option)
+                                if (!expanded) onToggle()
+                            },
+                        )
+                    }
+                }
+            }
+            Icon(
+                Icons.Filled.KeyboardArrowDown,
+                contentDescription = if (expanded) "Hide progress history" else "Show progress history",
+                modifier = Modifier.rotate(arrowRotation),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TaskHistoryCard(history: TaskHistory, ui: HistoryUiState, modifier: Modifier = Modifier) {
     val task = history.task
     val frequency = if (task.frequency == Frequency.DAILY) "Daily" else "Weekly"
     val parameter = if (task.parameterType == ParameterType.NONE) "" else " · ${task.parameterType.label()}"
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Column {
                 Text(task.name, style = MaterialTheme.typography.titleMedium)
@@ -153,7 +184,11 @@ private fun ValueChart(history: TaskHistory, ui: HistoryUiState) {
     BarChart(
         entries = entries,
         formatValue = { if (isTime) formatDuration(it) else it.toString() },
-        labelEvery = if (ui.days <= 7) 1 else 7,
+        labelEvery = when {
+            ui.days <= 7 -> 1
+            ui.days <= 30 -> 7
+            else -> 21
+        },
         description = "${if (isTime) "Time" else "Quantity"} per day chart for ${history.task.name}",
     )
 }
@@ -163,21 +198,29 @@ private fun ValueChart(history: TaskHistory, ui: HistoryUiState) {
 private fun DailyCompletionGrid(history: TaskHistory, ui: HistoryUiState) {
     val doneDates = history.records.filter { it.completed }.map { it.date }.toSet()
     val dates = datesBetween(ui.rangeStart, ui.today)
+    // Long ranges use small coloured squares (two weeks per row) so the card doesn't get too tall.
+    val compact = ui.days > 30
+    val perRow = if (compact) 14 else 7
+    val spacing = if (compact) 4.dp else 6.dp
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        dates.chunked(7).forEach { week ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                week.forEach { date ->
-                    val label = if (ui.days <= 7) date.shortDayName() else date.dayOfMonth.toString()
+    Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
+        dates.chunked(perRow).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
+                row.forEach { date ->
                     val status = when {
                         date in doneDates -> DayStatus.DONE
                         date < history.task.createdDate || date == ui.today -> DayStatus.NOT_TRACKED
                         else -> DayStatus.MISSED
                     }
-                    DayCell(label, status, Modifier.weight(1f))
+                    if (compact) {
+                        CompactDayCell(date, status, Modifier.weight(1f))
+                    } else {
+                        val label = if (ui.days <= 7) date.shortDayName() else date.dayOfMonth.toString()
+                        DayCell(label, status, Modifier.weight(1f))
+                    }
                 }
                 // Keep cell sizes equal in a partial last row.
-                repeat(7 - week.size) { Box(Modifier.weight(1f)) }
+                repeat(perRow - row.size) { Box(Modifier.weight(1f)) }
             }
         }
     }
@@ -220,6 +263,28 @@ private fun DayCell(label: String, status: DayStatus, modifier: Modifier = Modif
     ) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         StatusBadge(status, Modifier.fillMaxWidth().aspectRatio(1f))
+    }
+}
+
+/** A small square coloured by status, with the day of the month inside. */
+@Composable
+private fun CompactDayCell(date: LocalDate, status: DayStatus, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val (background, foreground) = when (status) {
+        DayStatus.DONE -> colors.primary to colors.onPrimary
+        DayStatus.MISSED -> colors.errorContainer to colors.onErrorContainer
+        DayStatus.NOT_TRACKED -> Color.Transparent to colors.onSurfaceVariant
+    }
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .background(background, RoundedCornerShape(4.dp))
+            .clearAndSetSemantics {
+                contentDescription = "${date.format(DateTimeFormatter.ofPattern("d MMM"))} ${status.spoken()}"
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(date.dayOfMonth.toString(), style = MaterialTheme.typography.labelSmall, color = foreground)
     }
 }
 

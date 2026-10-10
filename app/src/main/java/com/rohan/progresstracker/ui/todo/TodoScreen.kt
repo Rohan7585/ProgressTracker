@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -41,12 +42,22 @@ import com.rohan.progresstracker.ui.Routes
 @Composable
 fun TodoScreen(
     navController: NavHostController,
+    onOpenDrawer: () -> Unit,
     viewModel: TodoViewModel = viewModel(factory = AppViewModelFactory),
 ) {
     val todos by viewModel.todos.collectAsStateWithLifecycle()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Todo") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Todo") },
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Filled.Menu, contentDescription = "Open menu")
+                    }
+                },
+            )
+        },
         bottomBar = { AppBottomBar(navController) },
         floatingActionButton = {
             FloatingActionButton(onClick = dropUnlessResumed { navController.navigate(Routes.editTask(Routes.KIND_TODO)) }) {

@@ -24,7 +24,8 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = 1
-        versionName = "1.0"
+        // Semantic version; "-beta.N" marks pre-release builds. Bump versionCode for every release.
+        versionName = "1.0.0-beta.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -54,6 +55,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // Lets the app read its own version (BuildConfig.VERSION_NAME) for the About screen.
+        buildConfig = true
     }
 }
 

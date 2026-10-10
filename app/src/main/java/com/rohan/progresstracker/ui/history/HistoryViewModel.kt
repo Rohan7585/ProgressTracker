@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
 
+/** The ranges offered in the history range picker; the first one is the default. */
+val HISTORY_RANGES = listOf(7, 30, 90)
+
 data class TaskHistory(
     val task: RecurringTask,
     /** This task's records from the start of the first week in the range up to today. */
@@ -35,10 +38,10 @@ data class HistoryUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 class HistoryViewModel(
     private val repository: Repository,
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val days = MutableStateFlow(savedStateHandle.get<Int>("days") ?: 7)
+    private val days = MutableStateFlow(savedStateHandle.get<Int>(DAYS_KEY) ?: HISTORY_RANGES.first())
     private val today = MutableStateFlow(LocalDate.now())
 
     val uiState: StateFlow<HistoryUiState?> = combine(days, today) { d, t -> d to t }
@@ -64,9 +67,14 @@ class HistoryViewModel(
 
     fun setDays(value: Int) {
         days.value = value
+        savedStateHandle[DAYS_KEY] = value
     }
 
     fun refreshDate() {
         today.value = LocalDate.now()
+    }
+
+    private companion object {
+        const val DAYS_KEY = "historyDays"
     }
 }
